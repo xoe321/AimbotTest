@@ -1,0 +1,268 @@
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Aimbot", "DarkTheme")
+local Tab = Window:NewTab("Main")
+local Section = Tab:NewSection("Controls")
+
+local lockEnabled = false
+local connection
+
+-- ฟังก์ชันในการค้นหาผู้เล่นที่อยู่ใกล้ที่สุดและไม่อยู่ทีมเดียวกัน
+local function getNearestPlayer(excludeTeam)
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character then return nil end
+
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    
+    for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("Head") then
+            if excludeTeam == false or player.Team ~= otherPlayer.Team then
+                local distance = (character.HumanoidRootPart.Position - otherPlayer.Character.HumanoidRootPart.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPlayer = otherPlayer
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- ฟังก์ชันการล็อกกล้องไปที่ผู้เล่นที่ใกล้ที่สุด
+local function lockOnTarget(excludeTeam)
+    if connection then connection:Disconnect() end
+
+    local runService = game:GetService("RunService")
+    connection = runService.RenderStepped:Connect(function()
+        if not lockEnabled then
+            connection:Disconnect()
+            return
+        end
+
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+        if not character then return end
+
+        local targetPlayer = getNearestPlayer(excludeTeam)
+        if targetPlayer and targetPlayer.Character then
+            local targetHead = targetPlayer.Character:FindFirstChild("Head")
+            if targetHead and targetPlayer.Character:FindFirstChild("Humanoid").Health > 0 then
+                workspace.CurrentCamera.CFrame = CFrame.lookAt(workspace.CurrentCamera.CFrame.Position, targetHead.Position)
+            end
+        end
+    end)
+end
+
+-- ปุ่มสำหรับ Aimbot 100% (ล็อกเฉพาะศัตรู)
+Section:NewToggle("Aimbot 100% (Team)", "Locks camera to nearest enemy", function(state)
+    lockEnabled = state
+    if state then
+        lockOnTarget(true)  -- ไม่ล็อกเพื่อนร่วมทีม
+    else
+        if connection then connection:Disconnect() end
+    end
+end)
+
+-- ปุ่มสำหรับ Aimbot 100% (ล็อกทุกคนรวมถึงเพื่อนร่วมทีม)
+Section:NewToggle("Aimbot 100% (Normal)", "Locks camera to nearest player (including teammates)", function(state)
+    lockEnabled = state
+    if state then
+        lockOnTarget(false)  -- ล็อกทุกคน
+    else
+        if connection then connection:Disconnect() end
+    end
+end)
+
+-- ฟังก์ชันเปิดใช้งาน ESP (Wallhack)
+local function toggleESP(state)
+    -- ตรวจสอบทุกตัวละครที่อยู่ในเกม
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Character then
+            -- ตรวจสอบว่ามีการสร้าง ESP Box สำหรับตัวละครนี้แล้วหรือยัง
+            local highlight = player.Character:FindFirstChild("ESPBox")
+            if state and not highlight then
+                -- สร้าง ESP Box ใหม่
+                local newHighlight = Instance.new("Highlight")
+                newHighlight.Parent = player.Character
+                newHighlight.FillColor = Color3.fromRGB(255, 0, 0) -- สีแดง
+                newHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- สีขาว
+                newHighlight.FillTransparency = 0.5
+                newHighlight.OutlineTransparency = 0
+                newHighlight.Name = "ESPBox"
+            elseif not state and highlight then
+                -- ลบ ESP Box หากไม่เปิดใช้งาน
+                highlight:Destroy()
+            end
+        end
+
+        -- สำหรับผู้เล่นที่เข้ามาใหม่ (CharacterAdded)
+        player.CharacterAdded:Connect(function(character)
+            if state then
+                -- สร้าง ESP ใหม่เมื่อผู้เล่นเข้าสู่เกม
+                local newHighlight = Instance.new("Highlight")
+                newHighlight.Parent = character
+                newHighlight.FillColor = Color3.fromRGB(255, 0, 0) -- สีแดง
+                newHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- สีขาว
+                newHighlight.FillTransparency = 0.5
+                newHighlight.OutlineTransparency = 0
+                newHighlight.Name = "ESPBox"
+            end
+        end)
+    end
+end
+
+-- ปุ่มเปิด-ปิด ESP
+Section:NewToggle("Wallhack (ESP)", "See all players through walls", function(state)
+    toggleESP(state)
+end)
+
+-- เพิ่มสไลเดอร์เพื่อปรับความเร็ว
+Section:NewSlider("WalkSpeed", "Adjusts your walk speed", 500, 16, function(s)
+    -- ตั้งค่าความเร็วในการเดินของตัวละคร
+    game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = s
+end)
+
+local noclipXEnabled = false
+local runService = game:GetService("RunService")
+
+-- ฟังก์ชันเปิด/ปิดตัวทะลุในแกน X
+local function toggleNoclipX(state)
+    noclipXEnabled = state
+    if state then
+        -- เปิดใช้งาน NoclipX
+        runService.Stepped:Connect(function()
+            if noclipXEnabled then
+                local character = game.Players.LocalPlayer.Character
+                if character then
+                    for _, part in pairs(character:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end
+        end)
+    else
+        -- ปิดใช้งาน NoclipX
+        local character = game.Players.LocalPlayer.Character
+        if character then
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end
+
+-- ปุ่มเปิด-ปิดตัวทะลุในแกน X
+Section:NewToggle("Wall Clip (X-axis)", "Enable/Disable passing through walls on X-axis", function(state)
+    toggleNoclipX(state)
+end)
+
+local flying = false
+local flySpeed = 50 -- ความเร็วเริ่มต้นของการบิน
+local bodyVelocity
+local connection
+
+local flying = false
+local flySpeed = 50 -- ความเร็วเริ่มต้นของการบิน
+local bodyVelocity
+local bodyGyro
+local connection
+
+local flying = false
+local flySpeed = 50 -- ความเร็วเริ่มต้นของการบิน
+local bodyVelocity
+local bodyGyro
+local connection
+
+-- ฟังก์ชันเริ่มบิน
+local function startFly()
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if not character or flying then return end
+
+    flying = true
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    if humanoidRootPart then
+        -- เพิ่มแรงดันเพื่อให้บิน
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, flySpeed, 0)
+        bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bodyVelocity.Parent = humanoidRootPart
+
+        -- ล็อกตัวละครไม่ให้หมุน
+        bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.CFrame = humanoidRootPart.CFrame
+        bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bodyGyro.Parent = humanoidRootPart
+
+        -- อัปเดตตำแหน่งของผู้เล่นขณะบิน
+        connection = game:GetService("RunService").Heartbeat:Connect(function()
+            if flying and humanoidRootPart then
+                local moveDirection = character.Humanoid.MoveDirection
+                if flySpeed >= 15 then
+                    -- ถ้าความเร็วมากกว่า 15 ให้บิน
+                    humanoidRootPart.Velocity = moveDirection * flySpeed + Vector3.new(0, flySpeed, 0)
+                else
+                    -- ถ้าความเร็วน้อยกว่า 15 ให้ลอยและเดินได้
+                    humanoidRootPart.Velocity = moveDirection * 16 -- ใช้ค่า WalkSpeed ปกติ
+                end
+            end
+        end)
+    end
+end
+
+-- ฟังก์ชันหยุดบิน (แต่ยังลอยอยู่กับที่)
+local function stopFly()
+    if not flying then return end
+    flying = false
+
+    if bodyVelocity then
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0) -- ทำให้ลอยอยู่กับที่
+    end
+end
+
+-- ฟังก์ชันปิดการบินทั้งหมด (กลับไปเดินปกติ)
+local function disableFly()
+    flying = false
+
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+
+    if connection then
+        connection:Disconnect()
+        connection = nil
+    end
+end
+
+-- ปุ่มเปิด-ปิดการบิน
+Section:NewToggle("Fly Mode", "Enable/Disable Flying", function(state)
+    if state then
+        startFly()
+    else
+        disableFly()
+    end
+end)
+
+-- สไลเดอร์ปรับความเร็วบิน
+Section:NewSlider("Fly Speed", "Adjusts your fly speed", 300, 10, function(value)
+    flySpeed = value
+    
+    if flySpeed < 15 then
+        stopFly() -- ถ้าความเร็วน้อยกว่า 15 ให้ลอยอยู่กับที่และเดินได้
+    elseif flying then
+        bodyVelocity.Velocity = Vector3.new(0, flySpeed, 0)
+    end
+end)
+
