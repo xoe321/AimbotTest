@@ -97,15 +97,22 @@ local function toggleESP(state)
         end
     end
 
-    -- ตรวจสอบทุกตัวละครที่อยู่ในเกม
+    -- ฟังก์ชันนี้จะทำการสร้าง ESP ให้กับผู้เล่นทุกคนที่อยู่ในเกม
     for _, player in pairs(game.Players:GetPlayers()) do
         createESP(player)
 
-        -- สำหรับผู้เล่นที่เข้ามาใหม่ (CharacterAdded)
+        -- เชื่อมต่อการเช็คการเกิดใหม่ของตัวละคร (CharacterAdded)
         player.CharacterAdded:Connect(function(character)
             createESP(player)  -- สร้าง ESP ใหม่เมื่อผู้เล่นเข้าสู่เกม
         end)
     end
+
+    -- สำหรับผู้เล่นที่เข้ามาใหม่ (CharacterAdded) ที่ไม่ได้อยู่ในเกมตั้งแต่ต้น
+    game.Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            createESP(player)  -- สร้าง ESP ใหม่เมื่อผู้เล่นเข้าสู่เกม
+        end)
+    end)
 end
 
 
