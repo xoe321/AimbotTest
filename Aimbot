@@ -76,8 +76,8 @@ end)
 
 -- ฟังก์ชันเปิดใช้งาน ESP (Wallhack)
 local function toggleESP(state)
-    -- ตรวจสอบทุกตัวละครที่อยู่ในเกม
-    for _, player in pairs(game.Players:GetPlayers()) do
+    -- ฟังก์ชันในการสร้าง ESP Box
+    local function createESP(player)
         if player.Character then
             -- ตรวจสอบว่ามีการสร้าง ESP Box สำหรับตัวละครนี้แล้วหรือยัง
             local highlight = player.Character:FindFirstChild("ESPBox")
@@ -95,19 +95,15 @@ local function toggleESP(state)
                 highlight:Destroy()
             end
         end
+    end
+
+    -- ตรวจสอบทุกตัวละครที่อยู่ในเกม
+    for _, player in pairs(game.Players:GetPlayers()) do
+        createESP(player)
 
         -- สำหรับผู้เล่นที่เข้ามาใหม่ (CharacterAdded)
         player.CharacterAdded:Connect(function(character)
-            if state then
-                -- สร้าง ESP ใหม่เมื่อผู้เล่นเข้าสู่เกม
-                local newHighlight = Instance.new("Highlight")
-                newHighlight.Parent = character
-                newHighlight.FillColor = Color3.fromRGB(255, 0, 0) -- สีแดง
-                newHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- สีขาว
-                newHighlight.FillTransparency = 0.5
-                newHighlight.OutlineTransparency = 0
-                newHighlight.Name = "ESPBox"
-            end
+            createESP(player)  -- สร้าง ESP ใหม่เมื่อผู้เล่นเข้าสู่เกม
         end)
     end
 end
