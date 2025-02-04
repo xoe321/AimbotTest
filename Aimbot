@@ -79,47 +79,43 @@ local function toggleESP(state)
     -- ฟังก์ชันในการสร้าง ESP Box
     local function createESP(player)
         if player.Character then
-            -- ตรวจสอบว่ามีการสร้าง ESP Box สำหรับตัวละครนี้แล้วหรือยัง
-            local highlight = player.Character:FindFirstChild("ESPBox")
-            if state and not highlight then
-                -- สร้าง ESP Box ใหม่
+            local character = player.Character
+            -- ตรวจสอบว่ามี ESPBox อยู่หรือยัง
+            if state and not character:FindFirstChild("ESPBox") then
                 local newHighlight = Instance.new("Highlight")
-                newHighlight.Parent = player.Character
+                newHighlight.Parent = character
                 newHighlight.FillColor = Color3.fromRGB(255, 0, 0) -- สีแดง
                 newHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- สีขาว
                 newHighlight.FillTransparency = 0.5
                 newHighlight.OutlineTransparency = 0
                 newHighlight.Name = "ESPBox"
-            elseif not state and highlight then
-                -- ลบ ESP Box หากไม่เปิดใช้งาน
-                highlight:Destroy()
+            elseif not state and character:FindFirstChild("ESPBox") then
+                -- ลบ ESP Box ถ้า state เป็น false
+                character:FindFirstChild("ESPBox"):Destroy()
             end
         end
     end
 
-    -- ฟังก์ชันนี้จะทำการสร้าง ESP ให้กับผู้เล่นทุกคนที่อยู่ในเกม
-    for _, player in pairs(game.Players:GetPlayers()) do
-        createESP(player)
-
-        -- เชื่อมต่อการเช็คการเกิดใหม่ของตัวละคร (CharacterAdded)
-        player.CharacterAdded:Connect(function(character)
-            createESP(player)  -- สร้าง ESP ใหม่เมื่อผู้เล่นเข้าสู่เกม
-        end)
+    -- ฟังก์ชันที่ใช้สำหรับการเพิ่ม ESP ให้กับผู้เล่นที่เกิดใหม่
+    local function onCharacterAdded(character)
+        wait(0.5)  -- รอให้ Character โหลดเสร็จก่อน
+        createESP(game.Players:GetPlayerFromCharacter(character))
     end
 
-    -- สำหรับผู้เล่นที่เข้ามาใหม่ (CharacterAdded) ที่ไม่ได้อยู่ในเกมตั้งแต่ต้น
+    -- เชื่อมต่อการตรวจจับ CharacterAdded ให้กับทุก Player
+    for _, player in pairs(game.Players:GetPlayers()) do
+        if player.Character then
+            createESP(player)  -- สร้าง ESP ให้ผู้เล่นที่มีตัวละครอยู่แล้ว
+        end
+        player.CharacterAdded:Connect(onCharacterAdded)
+    end
+
+    -- สำหรับผู้เล่นที่เข้ามาใหม่
     game.Players.PlayerAdded:Connect(function(player)
-        player.CharacterAdded:Connect(function(character)
-            createESP(player)  -- สร้าง ESP ใหม่เมื่อผู้เล่นเข้าสู่เกม
-        end)
+        player.CharacterAdded:Connect(onCharacterAdded)
     end)
 end
 
-
--- ปุ่มเปิด-ปิด ESP
-Section:NewToggle("Wallhack (ESP)", "See all players through walls", function(state)
-    toggleESP(state)
-end)
 
 -- เพิ่มสไลเดอร์เพื่อปรับความเร็ว
 Section:NewSlider("WalkSpeed", "Adjusts your walk speed", 500, 16, function(s)
