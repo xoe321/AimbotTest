@@ -4,9 +4,12 @@ local Tab = Window:NewTab("Main")
 local Section = Tab:NewSection("Controls")
 
 local lockEnabled = false
+local espEnabled = false
+local noclipEnabled = false
 local connection
+local espConnections = {}
 
--- ฟังก์ชันในการค้นหาผู้เล่นที่อยู่ใกล้ที่สุดและไม่อยู่ทีมเดียวกัน
+-- ฟังก์ชันหาผู้เล่นที่อยู่ใกล้ที่สุด
 local function getNearestPlayer(excludeTeam)
     local player = game.Players.LocalPlayer
     local character = player.Character
@@ -29,7 +32,7 @@ local function getNearestPlayer(excludeTeam)
     return closestPlayer
 end
 
--- ฟังก์ชันการล็อกกล้องไปที่ผู้เล่นที่ใกล้ที่สุด
+-- ฟังก์ชันล็อกกล้องไปที่เป้าหมาย
 local function lockOnTarget(excludeTeam)
     if connection then connection:Disconnect() end
 
@@ -54,82 +57,101 @@ local function lockOnTarget(excludeTeam)
     end)
 end
 
--- ปุ่มสำหรับ Aimbot 100% (ล็อกเฉพาะศัตรู)
-Section:NewToggle("Aimbot 100% (Team)", "Locks camera to nearest enemy", function(state)
+-- ปุ่ม Aimbot
+Section:NewToggle("Aimbot (Team)", "ล็อกเป้าหมายเฉพาะศัตรู", function(state)
     lockEnabled = state
     if state then
-        lockOnTarget(true)  -- ไม่ล็อกเพื่อนร่วมทีม
+        lockOnTarget(true)
     else
         if connection then connection:Disconnect() end
     end
 end)
 
--- ปุ่มสำหรับ Aimbot 100% (ล็อกทุกคนรวมถึงเพื่อนร่วมทีม)
-Section:NewToggle("Aimbot 100% (Normal)", "Locks camera to nearest player (including teammates)", function(state)
+Section:NewToggle("Aimbot (All)", "ล็อกเป้าหมายทุกคน", function(state)
     lockEnabled = state
     if state then
-        lockOnTarget(false)  -- ล็อกทุกคน
+        lockOnTarget(false)
     else
         if connection then connection:Disconnect() end
     end
 end)
 
--- ฟังก์ชันเปิดใช้งาน ESP (Wallhack)
-local function toggleESP(state)
-    local function createESP(player)
-        if player.Character then
-            -- ตรวจสอบว่ามี ESP Box อยู่แล้วหรือยัง
-            if not player.Character:FindFirstChild("ESPBox") then
-                local newHighlight = Instance.new("Highlight")
-                newHighlight.Parent = player.Character
-                newHighlight.FillColor = Color3.fromRGB(255, 0, 0) -- สีแดง
-                newHighlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- สีขาว
-                newHighlight.FillTransparency = 0.5
-                newHighlight.OutlineTransparency = 0
-                newHighlight.Name = "ESPBox"
-            end
+-- ฟังก์ชันสร้าง ESP
+local function createESP(player)
+    if player.Character then
+        if not player.Character:FindFirstChild("ESPBox") then
+            local highlight = Instance.new("Highlight")
+            highlight.Parent = player.Character
+            highlight.FillColor = Color3.fromRGB(255, 0, 0) 
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.Name = "ESPBox"
         end
     end
-
-    -- สร้าง ESP สำหรับผู้เล่นที่อยู่ในเกม
-    for _, player in pairs(game.Players:GetPlayers()) do
-        createESP(player)
-
-        -- เชื่อมต่อ CharacterAdded เพื่อให้แน่ใจว่า ESP จะสร้างใหม่เมื่อรีสปาวน์
-        player.CharacterAdded:Connect(function()
-            wait(0.5) -- หน่วงเวลาเพื่อให้ตัวละครโหลดก่อน
-            createESP(player)
-        end)
-    end
-
-    -- ตรวจสอบผู้เล่นที่เข้ามาใหม่
-    game.Players.PlayerAdded:Connect(function(player)
-        player.CharacterAdded:Connect(function()
-            wait(0.5)
-            createESP(player)
-        end)
-    end)
 end
 
--- ปุ่มเปิด-ปิด ESP
-Section:NewToggle("Wallhack (ESP)", "See all players through walls", function(state)
+-- ฟังก์ชันเปิด/ปิด ESP
+local function toggleESP(state)
+    espEnabled = state
+
+    if state then
+        for _, player in pairs(game.Players:GetPlayers()) do
+            createESP(player)
+            local conn = player.CharacterAdded:Connect(function()
+                wait(0.5)
+                createESP(player)
+            end)
+            espConnections[player] = conn
+        end
+
+        local playerAddedConn = game.Players.PlayerAdded:Connect(function(player)
+            local charAddedConn = player.CharacterAdded:Connect(function()
+                wait(0.5)
+                createESP(player)
+            end)
+            espConnections[player] = charAddedConn
+        end)
+        espConnections["PlayerAdded"] = playerAddedConn
+    else
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player.Character then
+                local espBox = player.Character:FindFirstChild("ESPBox")
+                if espBox then
+                    espBox:Destroy()
+                end
+            end
+            if espConnections[player] then
+                espConnections[player]:Disconnect()
+                espConnections[player] = nil
+            end
+        end
+
+        if espConnections["PlayerAdded"] then
+            espConnections["PlayerAdded"]:Disconnect()
+            espConnections["PlayerAdded"] = nil
+        end
+    end
+end
+
+-- ปุ่มเปิด/ปิด ESP
+Section:NewToggle("Wallhack (ESP)", "มองเห็นทุกคนผ่านกำแพง", function(state)
     toggleESP(state)
 end)
 
--- เพิ่มสไลเดอร์เพื่อปรับความเร็ว
-Section:NewSlider("WalkSpeed", "Adjusts your walk speed", 500, 16, function(s)
+-- ปรับความเร็วการเดิน
+Section:NewSlider("WalkSpeed", "ปรับความเร็ว", 500, 16, function(s)
     game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = s
 end)
 
-local noclipXEnabled = false
-local runService = game:GetService("RunService")
+-- ฟังก์ชันเปิด/ปิด NoClip
+local function toggleNoclip(state)
+    noclipEnabled = state
+    local runService = game:GetService("RunService")
 
--- ฟังก์ชันเปิด/ปิดตัวทะลุในแกน X
-local function toggleNoclipX(state)
-    noclipXEnabled = state
     if state then
         runService.Stepped:Connect(function()
-            if noclipXEnabled then
+            if noclipEnabled then
                 local character = game.Players.LocalPlayer.Character
                 if character then
                     for _, part in pairs(character:GetChildren()) do
@@ -152,7 +174,7 @@ local function toggleNoclipX(state)
     end
 end
 
--- ปุ่มเปิด-ปิดตัวทะลุในแกน X
-Section:NewToggle("Wall Clip (X-axis)", "Enable/Disable passing through walls on X-axis", function(state)
-    toggleNoclipX(state)
+-- ปุ่มเปิด/ปิด NoClip
+Section:NewToggle("Wall Clip", "ทะลุกำแพง", function(state)
+    toggleNoclip(state)
 end)
